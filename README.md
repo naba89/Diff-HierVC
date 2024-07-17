@@ -1,3 +1,26 @@
+## This Fork:
+This fork modifies the project structure to make it pip installable.
+You can install the package by running:
+```bash
+pip install git+https://github.com/naba89/Diff-HierVC.git
+```
+This fork also adds an inference model class, that can be used as follows:
+```python
+from diffhiervc.inference_api import DiffHierVCInferenceModel
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+model = DiffHierVCInferenceModel(
+                 hf_repo="subatomicseer/diffhiervc_checkpoints",
+                 vocoder="bigvgan",
+                 diffpitch_ts=30,
+                 diffvoice_ts=6,
+).to(device)
+model.vc_to_file(audio='source.wav', save_path='output.wav', speaker_prompt='target.wav')
+```
+Also hosted the checkpoints on huggingface model hub, for simpler and automated download.
+
+## Original README.md follows:
+
+
 ##  Diff-HierVC: Diffusion-based Hierarchical Voice Conversion with Robust Pitch Generation and Masked Prior for Zero-shot Speaker Adaptation  <a src="https://img.shields.io/badge/cs.CV-2311.04693-b31b1b?logo=arxiv&logoColor=red" href="http://arxiv.org/abs/2311.04693"> <img src="https://img.shields.io/badge/cs.CV-2311.04693-b31b1b?logo=arxiv&logoColor=red">
 
 The official Pytorch implementation of Diff-HierVC (Interspeeh 2023, Oral)
@@ -96,4 +119,3 @@ This work is licensed under a
 [cc-by-nc-sa]: http://creativecommons.org/licenses/by-nc-sa/4.0/
 [cc-by-nc-sa-image]: https://licensebuttons.net/l/by-nc-sa/4.0/88x31.png
 [cc-by-nc-sa-shield]: https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg
-
