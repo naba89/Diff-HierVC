@@ -1,4 +1,4 @@
-## This Fork:
+## This Fork: (inference only, for training refer to the original repo.)
 This fork modifies the project structure to make it pip installable.
 You can install the package by running:
 ```bash
