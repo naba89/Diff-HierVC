@@ -1,18 +1,12 @@
-import torch
-from torch import nn
-from torch.nn import functional as F 
+from diffhiervc.model.base import BaseModule
+from diffhiervc.model.diffusion_mel import Diffusion as Mel_Diffusion
+from diffhiervc.model.diffusion_f0 import Diffusion as F0_Diffusion
+from diffhiervc.model.styleencoder import StyleEncoder
 
-from model.base import BaseModule
-from model.diffusion_mel import Diffusion as Mel_Diffusion
-from model.diffusion_f0 import Diffusion as F0_Diffusion
-from model.styleencoder import StyleEncoder  
- 
-import copy 
 import transformers
-import typing as tp
 
-from module.modules import *
-from module.utils import * 
+from diffhiervc.module.modules import *
+from diffhiervc.module.utils import *
 
  
 class Wav2vec2(torch.nn.Module):
@@ -190,5 +184,3 @@ class DiffHierVC(BaseModule):
         mel_diff_loss, mel_recon_loss  = self.mel_dec.compute_t(x, x_mask, y_mel, spk)  
 
         return mel_diff_loss, mel_recon_loss, f0_diff_loss, mel_loss, f0_loss
-
- 

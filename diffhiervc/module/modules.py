@@ -1,16 +1,8 @@
-import math
-import torch
-from torch import nn
-from torch.nn import functional as F
-
-import torchaudio.transforms as T
-
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
+from torch.nn import Conv1d
 from torch.nn.utils import weight_norm, remove_weight_norm
  
-from module.commons import *
-from module.transforms import piecewise_rational_quadratic_transform
-from torch.cuda.amp import autocast
+from diffhiervc.module.commons import *
+from diffhiervc.module.transforms import piecewise_rational_quadratic_transform
 
 LRELU_SLOPE = 0.1
 

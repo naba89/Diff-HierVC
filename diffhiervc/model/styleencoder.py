@@ -1,6 +1,8 @@
 import torch
-from torch import nn  
-from module.attentions import *
+from torch import nn
+
+from diffhiervc.module.attentions import MultiHeadAttention
+
 
 class Mish(nn.Module):
     def __init__(self):

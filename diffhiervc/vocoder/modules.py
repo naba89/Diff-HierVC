@@ -1,18 +1,10 @@
-import copy
-import math
-import numpy as np
-import scipy
-import torch
-from torch import nn
-from torch.nn import functional as F
-
 import torchaudio.transforms as T
 
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
+from torch.nn import Conv1d
 from torch.nn.utils import weight_norm, remove_weight_norm
 
-from module.commons import *
-from module.commons import init_weights, get_padding 
+from diffhiervc.module.commons import *
+from diffhiervc.module.commons import init_weights, get_padding
 from torch.cuda.amp import autocast
 
 LRELU_SLOPE = 0.1

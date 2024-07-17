@@ -1,11 +1,7 @@
-import math
-import torch
 import random
-import numpy as np
 from torch.nn import functional as F
 
-from model.base import BaseModule
-from model.diffusion_module import * 
+from diffhiervc.model.diffusion_module import *
 
 
 class GradLogPEstimator(BaseModule):

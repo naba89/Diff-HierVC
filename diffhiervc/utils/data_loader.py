@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torchaudio
 from torchaudio.transforms import MelSpectrogram
-from module.utils import parse_filelist
+from diffhiervc.module.utils import parse_filelist
 from torch.nn import functional as F
 np.random.seed(1234)
 

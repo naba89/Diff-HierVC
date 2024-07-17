@@ -1,9 +1,5 @@
-import math
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from model.base import BaseModule
-from model.diffusion_module import *
+from diffhiervc.model.diffusion_module import *
 from math import sqrt
 
 Linear = nn.Linear

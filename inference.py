@@ -1,20 +1,17 @@
 import os
 import torch
-import argparse 
-import tqdm
-import numpy as np 
-from glob import glob
+import argparse
+import numpy as np
 from scipy.io.wavfile import write
 from torch.nn import functional as F   
 import torchaudio
-import copy  
-import utils.utils as utils
+from diffhiervc.utils import utils as utils
 import amfm_decompy.pYAAPT as pYAAPT
 import amfm_decompy.basic_tools as basic 
-from vocoder.hifigan import HiFi 
-from vocoder.bigvgan import BigvGAN 
-from model.diffhiervc import DiffHierVC, Wav2vec2 
-from utils.utils import MelSpectrogramFixed
+from diffhiervc.vocoder.hifigan import HiFi
+from diffhiervc.vocoder.bigvgan import BigvGAN
+from diffhiervc.model.diffhiervc import DiffHierVC, Wav2vec2
+from diffhiervc.utils.utils import MelSpectrogramFixed
 
 h = None
 device = None

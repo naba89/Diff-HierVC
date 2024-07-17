@@ -1,119 +1,22 @@
-import torch
-from torch import nn
-from torch.nn import functional as F 
+import diffhiervc.vocoder.modules as modules
 
-from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
+from torch.nn import Conv1d, ConvTranspose1d, Conv2d
 from torch.nn.utils import weight_norm, remove_weight_norm, spectral_norm
-from torch.cuda.amp import autocast
+from diffhiervc.module.commons import *
 import torchaudio
 from einops import rearrange
+import typing as tp
 
-from alias_free_torch import *
-from module.commons import init_weights, get_padding
-import vocoder.modules as modules
-import vocoder.activations as activations
-
-class AMPBlock1(torch.nn.Module):
-    def __init__(self, channels, kernel_size=3, dilation=(1, 3, 5), activation=None):
-        super(AMPBlock1, self).__init__()
-      
-        self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
-        ])
-        self.convs1.apply(init_weights)
-
-        self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
-        ])
-        self.convs2.apply(init_weights)
-
-        self.num_layers = len(self.convs1) + len(self.convs2) # total number of conv layers
-
-
-        self.activations = nn.ModuleList([
-            Activation1d(
-                activation=activations.SnakeBeta(channels, alpha_logscale=True))
-                for _ in range(self.num_layers)
-        ])
-  
-    def forward(self, x):
-        acts1, acts2 = self.activations[::2], self.activations[1::2]
-        for c1, c2, a1, a2 in zip(self.convs1, self.convs2, acts1, acts2):
-            xt = a1(x)
-            xt = c1(xt)
-            xt = a2(xt)
-            xt = c2(xt)
-            x = xt + x
-
-        return x
-
-    def remove_weight_norm(self):
-        for l in self.convs1:
-            remove_weight_norm(l)
-        for l in self.convs2:
-            remove_weight_norm(l)
-
-
-class AMPBlock2(torch.nn.Module):
-    def __init__(self, channels, kernel_size=3, dilation=(1, 3), activation=None):
-        super(AMPBlock2, self).__init__()
-
-
-        self.convs = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1])))
-        ])
-        self.convs.apply(init_weights)
-
-        self.num_layers = len(self.convs) # total number of conv layers
-
-        if activation == 'snake': # periodic nonlinearity with snake function and anti-aliasing
-            self.activations = nn.ModuleList([
-                Activation1d(
-                    activation=activations.Snake(channels, alpha_logscale=True))
-                for _ in range(self.num_layers)
-            ])
-        elif activation == 'snakebeta': # periodic nonlinearity with snakebeta function and anti-aliasing
-            self.activations = nn.ModuleList([
-                Activation1d(
-                    activation=activations.SnakeBeta(channels, alpha_logscale=True))
-                 for _ in range(self.num_layers)
-            ])
-        else:
-            raise NotImplementedError("activation incorrectly specified. check the config file and look for 'activation'.")
-
-    def forward(self, x):
-        for c, a in zip (self.convs, self.activations):
-            xt = a(x)
-            xt = c(xt)
-            x = xt + x
-
-        return x
-
-    def remove_weight_norm(self):
-        for l in self.convs:
-            remove_weight_norm(l)
+def get_2d_padding(kernel_size: tp.Tuple[int, int], dilation: tp.Tuple[int, int] = (1, 1)):
+    return (((kernel_size[0] - 1) * dilation[0]) // 2, ((kernel_size[1] - 1) * dilation[1]) // 2)
 
 class Generator(torch.nn.Module):
     def __init__(self, initial_channel, resblock, resblock_kernel_sizes, resblock_dilation_sizes, upsample_rates, upsample_initial_channel, upsample_kernel_sizes, gin_channels=0):
         super(Generator, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
-        
-        self.conv_pre = weight_norm(Conv1d(initial_channel, upsample_initial_channel, 7, 1, padding=3))
-        resblock = AMPBlock1 if resblock == '1' else AMPBlock2
+        self.conv_pre = Conv1d(initial_channel, upsample_initial_channel, 7, 1, padding=3)
+        resblock = modules.ResBlock1 if resblock == '1' else modules.ResBlock2
 
         self.ups = nn.ModuleList()
         for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
@@ -125,10 +28,7 @@ class Generator(torch.nn.Module):
         for i in range(len(self.ups)):
             ch = upsample_initial_channel//(2**(i+1))
             for j, (k, d) in enumerate(zip(resblock_kernel_sizes, resblock_dilation_sizes)):
-                self.resblocks.append(resblock(ch, k, d, activation="snakebeta"))
-
-        activation_post = activations.SnakeBeta(ch, alpha_logscale=True)
-        self.activation_post = Activation1d(activation=activation_post)
+                self.resblocks.append(resblock(ch, k, d))
 
         self.conv_post = Conv1d(ch, 1, 7, 1, padding=3, bias=False)
         self.ups.apply(init_weights)
@@ -142,7 +42,7 @@ class Generator(torch.nn.Module):
           x = x + self.cond(g)
 
         for i in range(self.num_upsamples):
-      
+            x = F.leaky_relu(x, modules.LRELU_SLOPE)
             x = self.ups[i](x)
             xs = None
             for j in range(self.num_kernels):
@@ -151,8 +51,7 @@ class Generator(torch.nn.Module):
                 else:
                     xs += self.resblocks[i*self.num_kernels+j](x)
             x = xs / self.num_kernels
-
-        x = self.activation_post(x)
+        x = F.leaky_relu(x)
         x = self.conv_post(x)
         x = torch.tanh(x)
 
@@ -164,6 +63,33 @@ class Generator(torch.nn.Module):
             remove_weight_norm(l)
         for l in self.resblocks:
             l.remove_weight_norm()
+
+class DiscriminatorS(torch.nn.Module):
+    def __init__(self, use_spectral_norm=False):
+        super(DiscriminatorS, self).__init__()
+        norm_f = weight_norm if use_spectral_norm == False else spectral_norm
+        self.convs = nn.ModuleList([
+            norm_f(Conv1d(1, 16, 15, 1, padding=7)),
+            norm_f(Conv1d(16, 64, 41, 4, groups=4, padding=20)),
+            norm_f(Conv1d(64, 256, 41, 4, groups=16, padding=20)),
+            norm_f(Conv1d(256, 1024, 41, 4, groups=64, padding=20)),
+            norm_f(Conv1d(1024, 1024, 41, 4, groups=256, padding=20)),
+            norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
+        ])
+        self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
+
+    def forward(self, x):
+        fmap = []
+
+        for l in self.convs:
+            x = l(x)
+            x = F.leaky_relu(x, modules.LRELU_SLOPE)
+            fmap.append(x)
+        x = self.conv_post(x)
+        fmap.append(x)
+        x = torch.flatten(x, 1, -1)
+
+        return x, fmap
 
 class DiscriminatorP(torch.nn.Module):
     def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False):
@@ -182,9 +108,10 @@ class DiscriminatorP(torch.nn.Module):
 
     def forward(self, x):
         fmap = []
- 
+
+        # 1d to 2d
         b, c, t = x.shape
-        if t % self.period != 0: 
+        if t % self.period != 0: # pad first
             n_pad = self.period - (t % self.period)
             x = F.pad(x, (0, n_pad), "reflect")
             t = t + n_pad
@@ -222,7 +149,7 @@ class DiscriminatorR(torch.nn.Module):
     def forward(self, y):
         fmap = []
 
-        x = self.spec_transform(y)  
+        x = self.spec_transform(y)  # [B, 2, Freq, Frames, 2]
         x = torch.cat([x.real, x.imag], dim=1)
         x = rearrange(x, 'b c w t -> b c t w')
 
@@ -240,11 +167,13 @@ class DiscriminatorR(torch.nn.Module):
 class MultiPeriodDiscriminator(torch.nn.Module):
     def __init__(self, use_spectral_norm=False):
         super(MultiPeriodDiscriminator, self).__init__()
-        periods = [2,3,5,7,11]
+        # periods = [2,3,5,7,11]
+        # resolutions = [[1024, 120, 600], [2048, 240, 1200], [512, 50, 240]]
         resolutions = [[2048, 512, 2048], [1024, 256, 1024], [512, 128, 512], [256, 64, 256], [128, 32, 128]]
 
         discs = [DiscriminatorR(resolutions[i], use_spectral_norm=use_spectral_norm) for i in range(len(resolutions))]
-        discs = discs + [DiscriminatorP(i, use_spectral_norm=use_spectral_norm) for i in periods]
+        # discs = [DiscriminatorS(use_spectral_norm=use_spectral_norm)]
+        # discs = discs + [DiscriminatorP(i, use_spectral_norm=use_spectral_norm) for i in periods]
         self.discriminators = nn.ModuleList(discs)
 
     def forward(self, y, y_hat):
@@ -262,7 +191,7 @@ class MultiPeriodDiscriminator(torch.nn.Module):
 
         return y_d_rs, y_d_gs, fmap_rs, fmap_gs
 
-class BigvGAN(nn.Module):
+class HiFi(nn.Module):
   """
   Synthesizer for Training
   """
@@ -314,4 +243,3 @@ class BigvGAN(nn.Module):
 
     o = self.dec(x[:,:,:max_len])
     return o
-

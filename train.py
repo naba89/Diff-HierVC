@@ -5,9 +5,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from torch.cuda.amp import autocast, GradScaler
+from torch.cuda.amp import GradScaler
 
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.distributed import DistributedSampler
 
@@ -15,10 +14,10 @@ import random
 import commons
 import utils
  
-from augmentation.aug import Augment
-from model.diffhiervc import Wav2vec2, DiffHierVC
+from diffhiervc.augmentation.aug import Augment
+from diffhiervc.model.diffhiervc import Wav2vec2, DiffHierVC
 from data_loader import AudioDataset, MelSpectrogramFixed
-from vocoder.hifigan import HiFi
+from diffhiervc.vocoder.hifigan import HiFi
 from torch.utils.data import DataLoader
 
 torch.backends.cudnn.benchmark = True
@@ -85,7 +84,7 @@ def run(rank, n_gpus, hps):
         hps.data.n_mel_channels,
         hps.train.segment_size // hps.data.hop_length,
         **hps.model).cuda()
-    path_ckpt = './vocoder/voc_hifigan.pth'
+    path_ckpt = 'diffhiervc/vocoder/voc_hifigan.pth'
 
     utils.load_checkpoint(path_ckpt, net_v, None)
     net_v.eval()
