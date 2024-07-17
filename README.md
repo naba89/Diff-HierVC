@@ -6,6 +6,7 @@ pip install git+https://github.com/naba89/Diff-HierVC.git
 ```
 This fork also adds an inference model class, that can be used as follows:
 ```python
+import torch
 from diffhiervc.inference_api import DiffHierVCInferenceModel
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 model = DiffHierVCInferenceModel(
